@@ -1,0 +1,37 @@
+{
+  "name": "i-want-to-build-a-new",
+  "version": "1.0.0",
+  "description": "A Next.js application connected to Supabase.",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint ."
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@google/generative-ai": "^0.24.1",
+    "@jerrycoder/instagram-api": "^2.5.9",
+    "@renpwn/fb-downloader": "^1.0.16",
+    "@supabase/supabase-js": "^2.110.2",
+    "cmdk": "^1.1.1",
+    "lucide-react": "^1.24.0",
+    "next": "^16.2.10",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
+    "tesseract.js": "^7.0.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.3.2",
+    "@types/node": "^26.1.1",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "tailwindcss": "^4.3.2",
+    "typescript": "^5.9.3"
+  },
+  "overrides": {
+    "axios": "1.18.1"
+  }
+}
