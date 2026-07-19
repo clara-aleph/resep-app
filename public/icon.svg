@@ -1,10 +1,10 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
   <title id="title">Koleksi Resepku</title>
-  <desc id="desc">Ikon panci masak berwarna oranye</desc>
+  <desc id="desc">Ikon kuali masak berwarna oranye</desc>
   <rect width="512" height="512" rx="112" fill="#f97316"/>
-  <path d="M116 236h280v42c0 86-57 142-140 142S116 364 116 278z" fill="#fffaf5"/>
-  <path d="M100 222h312c12 0 22 10 22 22s-10 22-22 22H100c-12 0-22-10-22-22s10-22 22-22z" fill="#31251f"/>
-  <path d="M178 192c0-43 34-78 78-78s78 35 78 78" fill="none" stroke="#fffaf5" stroke-linecap="round" stroke-width="30"/>
-  <path d="M104 282H68c-20 0-36 16-36 36v18c0 20 16 36 36 36h48M408 282h36c20 0 36 16 36 36v18c0 20-16 36-36 36h-48" fill="none" stroke="#fffaf5" stroke-linecap="round" stroke-width="24"/>
-  <circle cx="202" cy="326" r="13" fill="#f97316"/><circle cx="256" cy="326" r="13" fill="#f97316"/><circle cx="310" cy="326" r="13" fill="#f97316"/>
+  <path d="M115 224c18 104 71 166 153 166s135-62 153-166z" fill="#fffaf5"/>
+  <path d="M104 210h323c13 0 24 11 24 24s-11 24-24 24H104c-13 0-24-11-24-24s11-24 24-24z" fill="#31251f"/>
+  <path d="M382 237l75-65c16-14 41-13 55 3s13 41-3 55l-76 66" fill="none" stroke="#fffaf5" stroke-linecap="round" stroke-width="26"/>
+  <path d="M178 184c0-37 32-66 72-66s72 29 72 66" fill="none" stroke="#fffaf5" stroke-linecap="round" stroke-width="24"/>
+  <path d="M182 303c22 18 51 28 86 28 37 0 68-10 92-28" fill="none" stroke="#f97316" stroke-linecap="round" stroke-width="14"/>
 </svg>
