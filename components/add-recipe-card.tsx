@@ -1,6 +1,6 @@
 "use client";
 
-import { ImageUp, Link2, LoaderCircle, Plus, WandSparkles } from "lucide-react";
+import { ImageUp, Link2, LoaderCircle, WandSparkles } from "lucide-react";
 import { ChangeEvent, useState } from "react";
 import { CategoryCombobox } from "@/components/category-combobox";
 import { createRecipe, Recipe, uploadRecipeImage } from "@/lib/recipes";
@@ -78,7 +78,7 @@ export function AddRecipeCard({ categories, onCreated }: { categories: string[];
     } catch { setStatus("Resep belum dapat disimpan. Periksa koneksi database Anda."); } finally { setLoading(false); }
   }
   return <section className="rounded-3xl border border-orange-100 bg-white p-5 shadow-sm sm:p-7">
-    <div className="mb-6 flex items-center justify-between"><div><p className="text-sm font-semibold text-orange-700">KOTAK RESEP BARU</p><h2 className="text-2xl font-bold text-stone-900">Tambah Resep</h2></div><Plus className="text-orange-500" /></div>
+    <div className="mb-6"><h2 className="text-3xl font-bold text-stone-900">Tambah Resep</h2></div>
     <div className="mb-5 grid grid-cols-2 rounded-xl bg-orange-50 p-1"><button onClick={() => { setMode("tautan"); setSourcePhoto(null); }} className={`rounded-lg px-3 py-2 text-sm font-semibold ${mode === "tautan" ? "bg-white text-orange-700 shadow-sm" : "text-stone-600"}`}><Link2 className="mr-1 inline" size={15}/>Simpan Tautan Video</button><button onClick={() => setMode("foto")} className={`rounded-lg px-3 py-2 text-sm font-semibold ${mode === "foto" ? "bg-white text-orange-700 shadow-sm" : "text-stone-600"}`}><ImageUp className="mr-1 inline" size={15}/>Unggah Foto Resep</button></div>
     {mode === "tautan" ? <div className="flex gap-2"><input value={url} onChange={(event) => setUrl(event.target.value)} placeholder="Tempel tautan video YouTube, Facebook, atau Instagram publik..." className="min-w-0 flex-1 rounded-xl border border-stone-300 px-3 py-2.5 text-sm outline-orange-400"/><button onClick={() => ambilTautan()} disabled={loading} className="rounded-xl bg-stone-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60">Analisis Video</button></div> : <label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-orange-300 bg-orange-50 px-4 py-6 text-sm font-semibold text-orange-800"><ImageUp size={18}/>Pilih foto catatan resep<input type="file" accept="image/*" onChange={bacaFoto} className="hidden" /></label>}
     <div className="mt-5 grid gap-4 sm:grid-cols-2"><label className="text-sm font-medium">Judul resep<input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Contoh: Sayur Labu Santan" className="mt-1.5 w-full rounded-xl border border-stone-300 px-3 py-2.5 outline-orange-400"/></label><label className="text-sm font-medium">Kategori<div className="mt-1.5"><CategoryCombobox value={category} onChange={setCategory} categories={categories}/></div></label></div>

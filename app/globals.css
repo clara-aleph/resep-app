@@ -9,20 +9,30 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+  font-size: 18px;
+  line-height: 1.5;
 }
 
 button, input, textarea { font: inherit; }
+
+/* Skala teks lebih nyaman untuk pengguna lansia pada tampilan layar. */
+@media screen {
+  .text-xs { font-size: 0.875rem; }
+  .text-sm { font-size: 1rem; }
+  .text-base { font-size: 1.125rem; }
+  .text-lg { font-size: 1.25rem; }
+}
 
 @media print {
   @page { margin: 14mm; }
 
   body { background: #fff; color: #111; font-size: 10pt; }
-  .app-navigation, .recipe-cover, .recipe-aside, .recipe-source-image, button { display: none !important; }
+  .app-navigation, .recipe-cover, .recipe-aside, .recipe-source-image, .recipe-mobile-video, button { display: none !important; }
   .recipe-print { max-width: none !important; padding: 0 !important; }
   .recipe-content { display: block !important; }
   .recipe-primary { display: grid; grid-template-columns: 36% 64%; column-gap: 8mm; align-items: start; }
   .recipe-title, .recipe-heading, .recipe-status { grid-column: 1 / -1; }
-  .recipe-title { margin: 0 0 2mm !important; }
+  .recipe-title { display: none !important; }
   .recipe-heading { font-size: 22pt !important; line-height: 1.1 !important; margin-bottom: 5mm; }
   .recipe-status { display: none; }
   .recipe-ingredients, .recipe-instructions { margin-top: 0 !important; break-inside: avoid; }
