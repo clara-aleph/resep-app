@@ -4,9 +4,12 @@ import { instagram as getInstagramVideoInfo } from "@jerrycoder/instagram-api";
 import { NextRequest, NextResponse } from "next/server";
 
 export const runtime = "nodejs";
+// Batas tertinggi fungsi serverless Vercel pada paket gratis.
 export const maxDuration = 60;
 
-const prompt = "You are an elite culinary AI. Watch this cooking video and extract the full recipe. You MUST separate the content clearly into two distinct sections: 'Bahan-bahan' (Ingredients) and 'Cara Membuat' (Step-by-step instructions). Crucial Requirement: The entire output must be translated and written strictly in Indonesian, regardless of the original language spoken or shown in the video. Output the result in clean JSON format with separate arrays/fields for 'bahan' and 'cara_membuat' so the frontend can parse it easily. Hanya sertakan bahan dan langkah yang benar-benar terlihat, terdengar, atau tersirat jelas dalam video. Jika video bukan resep, kembalikan kedua array kosong.";
+const FACEBOOK_SCRAPER_TIMEOUT_MS = 12_000;
+
+const prompt = "You are an elite culinary AI. Watch this cooking video and extract the full recipe. You MUST separate the content clearly into two distinct sections: 'Bahan-bahan' (Ingredients) and 'Cara Membuat' (Step-by-step instructions). Crucial Requirement: The entire output must be translated and written strictly in Indonesian, regardless of the original language spoken or shown in the video. Output the result in clean JSON format with separate arrays/fields for 'bahan' and 'cara_membuat' so the frontend can parse it easily. Periksa frame visual video secara menyeluruh, termasuk teks di layar dan aksi memasak; jangan hanya mengandalkan audio. Hanya sertakan bahan dan langkah yang benar-benar terlihat, terdengar, atau tersirat jelas dalam video. Jika video bukan resep, kembalikan kedua array kosong.";
 
 const mockRecipe = {
   bahan: ["500 gram ayam, potong sesuai selera", "3 siung bawang putih, haluskan", "1 sendok teh garam", "2 sendok makan minyak goreng"],
@@ -62,6 +65,23 @@ function parseRecipe(rawResponse: string) {
   throw new Error("Video belum dapat dikenali sebagai resep. Gunakan video memasak YouTube yang bersifat publik.");
 }
 
+async function getFacebookSdVideo(url: string) {
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(() => reject(new Error("Pengambilan video Facebook terlalu lama.")), FACEBOOK_SCRAPER_TIMEOUT_MS);
+  });
+  try {
+    const facebookVideo = await Promise.race([getFacebookVideoInfo(url), timeout]);
+
+    // `sd` adalah stream MP4 beresolusi terendah yang disediakan scraper. Stream ini
+    // tetap memuat frame video, sehingga Gemini dapat membaca teks dan tindakan visual.
+    if (!facebookVideo.sd) throw new Error("Stream video SD tidak tersedia.");
+    return facebookVideo;
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     const { url } = await request.json() as { url?: string };
@@ -78,9 +98,8 @@ export async function POST(request: NextRequest) {
 
     if (validFacebookUrl(url)) {
       try {
-        const facebookVideo = await getFacebookVideoInfo(url.trim());
-        videoUri = facebookVideo.hd || facebookVideo.sd;
-        if (!videoUri) throw new Error("Tautan video langsung tidak tersedia.");
+        const facebookVideo = await getFacebookSdVideo(url.trim());
+        videoUri = facebookVideo.sd;
         mimeType = "video/mp4";
         title = facebookVideo.title || null;
         thumbnailUrl = facebookVideo.thumbnail || null;
@@ -107,6 +126,7 @@ export async function POST(request: NextRequest) {
     const model = gemini.getGenerativeModel({
       model: "gemini-2.5-flash",
       generationConfig: {
+        maxOutputTokens: 8192,
         responseMimeType: "application/json",
         responseSchema: {
           type: SchemaType.OBJECT,
