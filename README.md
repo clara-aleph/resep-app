@@ -22,5 +22,5 @@ Tanpa kredensial Supabase, aplikasi memakai penyimpanan lokal browser agar alur 
 ## Catatan fitur
 
 - Tautan YouTube publik diteruskan oleh route serverless sebagai konteks video langsung ke Gemini 2.5 Flash. Tambahkan `GEMINI_API_KEY` dari Google AI Studio ke `.env.local`; kunci ini tidak pernah dikirim ke browser. Video harus publik (bukan privat atau tidak publik).
-- OCR memakai `tesseract.js` dengan kode bahasa `ind` secara eksplisit. Hasil tulisan tangan perlu ditinjau sebelum disimpan.
-- Transkrip video dan terjemahan adalah layanan mock yang ditandai pada pengalaman pengguna; keduanya tidak memanggil layanan berbayar.
+- Foto catatan resep dikompres di browser sebelum dikirim ke route serverless Gemini 2.5 Flash. Gemini membaca tulisan tangan Indonesia, termasuk singkatan memasak dan tanda petik pengulangan; hasilnya tetap perlu ditinjau sebelum disimpan.
+- Pratinjau video tanpa kunci Gemini ditandai sebagai data contoh pada pengalaman pengguna.
