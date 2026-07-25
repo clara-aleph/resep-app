@@ -6,6 +6,7 @@ export type Recipe = {
   source_url: string | null;
   cover_image_url: string | null;
   source_image_url: string | null;
+  result_image_url: string | null;
   extracted_text: string | null;
   ingredients_list: string[];
   instructions_list: string[];
@@ -14,12 +15,12 @@ export type Recipe = {
   created_at: string;
 };
 
-export type RecipeInput = Omit<Recipe, "id" | "created_at" | "is_tried"> & { is_tried?: boolean };
+export type RecipeInput = Omit<Recipe, "id" | "created_at" | "is_tried" | "result_image_url"> & { is_tried?: boolean; result_image_url?: string | null };
 const localKey = "koleksi-resep-lokal";
-const contoh: Recipe = { id: "contoh-soto", title: "Soto Ayam Hangat", source_url: null, cover_image_url: "https://images.unsplash.com/photo-1626804475297-41608ea09aeb?auto=format&fit=crop&w=900&q=80", source_image_url: null, extracted_text: "Catatan resep contoh.", ingredients_list: ["500 g ayam", "1 liter air", "Bumbu soto"], instructions_list: ["Rebus ayam hingga matang.", "Masukkan bumbu dan masak hingga harum.", "Sajikan dengan pelengkap."], categories: ["Makanan Indonesia"], is_tried: false, created_at: "2026-07-12T00:00:00.000Z" };
+const contoh: Recipe = { id: "contoh-soto", title: "Soto Ayam Hangat", source_url: null, cover_image_url: "https://images.unsplash.com/photo-1626804475297-41608ea09aeb?auto=format&fit=crop&w=900&q=80", source_image_url: null, result_image_url: null, extracted_text: "Catatan resep contoh.", ingredients_list: ["500 g ayam", "1 liter air", "Bumbu soto"], instructions_list: ["Rebus ayam hingga matang.", "Masukkan bumbu dan masak hingga harum.", "Sajikan dengan pelengkap."], categories: ["Makanan Indonesia"], is_tried: false, created_at: "2026-07-12T00:00:00.000Z" };
 
 function normaliseRecipe(recipe: Recipe) {
-  return { ...recipe, source_image_url: recipe.source_image_url ?? null, is_tried: Boolean(recipe.is_tried) };
+  return { ...recipe, source_image_url: recipe.source_image_url ?? null, result_image_url: recipe.result_image_url ?? null, is_tried: Boolean(recipe.is_tried) };
 }
 
 function localRecipes() {
@@ -43,7 +44,7 @@ export async function getRecipe(id: string) {
 }
 export async function createRecipe(input: RecipeInput) {
   if (!isSupabaseConfigured()) {
-    const recipe: Recipe = { ...input, is_tried: input.is_tried ?? false, id: crypto.randomUUID(), created_at: new Date().toISOString() };
+    const recipe: Recipe = { ...input, result_image_url: input.result_image_url ?? null, is_tried: input.is_tried ?? false, id: crypto.randomUUID(), created_at: new Date().toISOString() };
     writeLocal([recipe, ...localRecipes()]);
     return recipe;
   }
@@ -77,13 +78,23 @@ function readFileAsDataUrl(file: File) {
   });
 }
 
-export async function uploadRecipeImage(file: File) {
+export async function uploadRecipeImage(file: File, folder = "foto-resep") {
   const fallback = await readFileAsDataUrl(file);
   if (!isSupabaseConfigured()) return fallback;
   const extension = file.name.split(".").pop()?.replace(/[^a-z0-9]/gi, "") || "jpg";
-  const path = `foto-resep/${crypto.randomUUID()}.${extension}`;
+  const path = `${folder}/${crypto.randomUUID()}.${extension}`;
   const client = createSupabaseClient();
   const { error } = await client.storage.from("recipe-images").upload(path, file, { contentType: file.type, upsert: false });
   if (error) return fallback;
   return client.storage.from("recipe-images").getPublicUrl(path).data.publicUrl;
+}
+
+export async function deleteRecipeImage(url: string | null) {
+  if (!url || !isSupabaseConfigured()) return;
+  const prefix = "/storage/v1/object/public/recipe-images/";
+  const pathIndex = url.indexOf(prefix);
+  if (pathIndex === -1) return;
+  const path = decodeURIComponent(url.slice(pathIndex + prefix.length));
+  const { error } = await createSupabaseClient().storage.from("recipe-images").remove([path]);
+  if (error) throw error;
 }

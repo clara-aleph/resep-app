@@ -83,7 +83,7 @@ export function AddRecipeCard({ categories, onCreated }: { categories: string[];
       const response = await fetch("/api/analyze-recipe-image", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ image }) });
       const analyzed = await response.json();
       if (!response.ok) throw new Error(analyzed.error);
-      setIngredients(analyzed.bahan.join("\n")); setInstructions(analyzed.cara_membuat.join("\n"));
+      setTitle((current) => analyzed.title?.trim() || current); setIngredients(analyzed.bahan.join("\n")); setInstructions(analyzed.cara_membuat.join("\n"));
       setText("Resep tulisan tangan telah dianalisis oleh Gemini. Periksa sebelum menyimpan.");
       setStatus("Resep berhasil dibaca. Periksa bahan dan langkah sebelum menyimpan.");
     } catch (error) { setStatus(error instanceof Error ? error.message : "Foto belum dapat dibaca. Coba foto yang lebih terang dan tajam."); } finally { setLoading(false); setIsAnalyzingPhoto(false); }

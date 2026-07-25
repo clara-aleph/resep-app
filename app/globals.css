@@ -15,6 +15,9 @@ body {
 
 button, input, textarea { font: inherit; }
 
+.scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+.scrollbar-hide::-webkit-scrollbar { display: none; }
+
 /* Skala teks lebih nyaman untuk pengguna lansia pada tampilan layar. */
 @media screen {
   .text-xs { font-size: 0.875rem; }
@@ -27,7 +30,7 @@ button, input, textarea { font: inherit; }
   @page { margin: 14mm; }
 
   body { background: #fff; color: #111; font-size: 10pt; }
-  .app-navigation, .recipe-cover, .recipe-aside, .recipe-source-image, .recipe-mobile-video, button { display: none !important; }
+  .app-navigation, .recipe-cover, .recipe-aside, .recipe-source-image, .recipe-result-image, .recipe-mobile-video, button { display: none !important; }
   .recipe-print { max-width: none !important; padding: 0 !important; }
   .recipe-content { display: block !important; }
   .recipe-primary { display: grid; grid-template-columns: 36% 64%; column-gap: 8mm; align-items: start; }

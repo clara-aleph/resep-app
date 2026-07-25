@@ -5,6 +5,7 @@ create table if not exists public.recipes (
   source_url text,
   cover_image_url text,
   source_image_url text,
+  result_image_url text,
   extracted_text text,
   ingredients_list jsonb not null default '[]'::jsonb,
   instructions_list jsonb not null default '[]'::jsonb,
@@ -16,6 +17,7 @@ create table if not exists public.recipes (
 
 -- Aman dijalankan untuk proyek yang sudah memakai schema versi sebelumnya.
 alter table public.recipes add column if not exists source_image_url text;
+alter table public.recipes add column if not exists result_image_url text;
 alter table public.recipes add column if not exists is_tried boolean not null default false;
 
 alter table public.recipes enable row level security;
@@ -34,5 +36,7 @@ create policy "Resep dapat dihapus" on public.recipes for delete using (true);
 insert into storage.buckets (id, name, public) values ('recipe-images', 'recipe-images', true) on conflict (id) do update set public = true;
 drop policy if exists "Foto resep dapat diunggah" on storage.objects;
 drop policy if exists "Foto resep dapat dibaca" on storage.objects;
+drop policy if exists "Foto resep dapat dihapus" on storage.objects;
 create policy "Foto resep dapat diunggah" on storage.objects for insert with check (bucket_id = 'recipe-images');
 create policy "Foto resep dapat dibaca" on storage.objects for select using (bucket_id = 'recipe-images');
+create policy "Foto resep dapat dihapus" on storage.objects for delete using (bucket_id = 'recipe-images');
