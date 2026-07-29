@@ -153,10 +153,13 @@ export async function POST(request: NextRequest) {
     if (validInstagramUrl(url)) {
       try {
         const instagramVideo = await getInstagramVideoInfo(url.trim());
+        const instagramMetadata = instagramVideo as { title?: unknown; thumbnail?: unknown; thumbnail_url?: unknown; image?: unknown };
         const directVideoUrl = [instagramVideo.url, instagramVideo.type].find((value): value is string => typeof value === "string" && value.startsWith("https://"));
         if (!directVideoUrl) throw new Error("Tautan video langsung tidak tersedia.");
         videoUri = directVideoUrl;
         mimeType = "video/mp4";
+        title = typeof instagramMetadata.title === "string" ? instagramMetadata.title : title;
+        thumbnailUrl = [instagramMetadata.thumbnail, instagramMetadata.thumbnail_url, instagramMetadata.image].find((value): value is string => typeof value === "string" && value.startsWith("https://")) ?? thumbnailUrl;
       } catch (error) {
         console.warn("Video Instagram tidak dapat diakses:", error);
         return NextResponse.json({ error: "Video Instagram ini diproteksi. Silakan masukkan resep secara manual." }, { status: 422 });
@@ -185,7 +188,7 @@ export async function POST(request: NextRequest) {
       { text: prompt },
     ]);
     const permanentThumbnailUrl = await cacheThumbnailInSupabase(thumbnailUrl);
-    return NextResponse.json({ ...parseRecipe(result.response.text()), mock: false, title, thumbnail_url: permanentThumbnailUrl });
+    return NextResponse.json({ ...parseRecipe(result.response.text()), mock: false, title, thumbnail_url: permanentThumbnailUrl ?? thumbnailUrl });
   } catch (error) {
     console.error("Gagal menganalisis video masak:", error);
     const message = error instanceof Error ? error.message : "Video tidak dapat dianalisis.";

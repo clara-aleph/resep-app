@@ -13,7 +13,7 @@ export function CategoryCombobox({ value, onChange, categories = [] }: { value: 
   const normalized = query.trim();
   const hasExact = options.some((option) => option.toLocaleLowerCase() === normalized.toLocaleLowerCase());
 
-  function pilih(next: string) { onChange(next); setQuery(""); setOpen(false); }
+  function pilih(next: string) { setOpen(false); setQuery(""); onChange(next); }
   return <div className="relative">
     <button type="button" onClick={() => setOpen(!open)} className="flex w-full items-center justify-between rounded-xl border border-stone-300 bg-white px-3 py-2.5 text-left text-sm text-stone-800" aria-expanded={open}>
       <span className={value ? "" : "text-stone-400"}>{value || "Ketik atau pilih kategori..."}</span><ChevronDown size={16} />
@@ -22,8 +22,8 @@ export function CategoryCombobox({ value, onChange, categories = [] }: { value: 
       <Command.Input value={query} onValueChange={setQuery} placeholder="Ketik atau pilih kategori..." className="w-full border-b border-stone-100 px-3 py-2 text-sm outline-none" />
       <Command.List className="max-h-48 overflow-auto py-1">
         <Command.Empty className="px-3 py-2 text-sm text-stone-500">Tidak ada kategori yang sama.</Command.Empty>
-        {normalized && !hasExact && <Command.Item value={`buat-${normalized}`} onSelect={() => pilih(normalized)} className="cursor-pointer rounded-lg px-3 py-2 text-sm aria-selected:bg-orange-50">Buat kategori “{normalized}”</Command.Item>}
-        {options.map((option) => <Command.Item key={option} value={option} onSelect={() => pilih(option)} className="flex cursor-pointer items-center justify-between rounded-lg px-3 py-2 text-sm aria-selected:bg-orange-50">{option}{value === option && <Check size={15} />}</Command.Item>)}
+        {normalized && !hasExact && <Command.Item value={`buat-${normalized}`} onSelect={() => pilih(normalized)} onClick={() => pilih(normalized)} className="cursor-pointer rounded-lg px-3 py-2 text-sm aria-selected:bg-orange-50">Buat kategori “{normalized}”</Command.Item>}
+        {options.map((option) => <Command.Item key={option} value={option} onSelect={() => pilih(option)} onClick={() => pilih(option)} className="flex cursor-pointer items-center justify-between rounded-lg px-3 py-2 text-sm aria-selected:bg-orange-50">{option}{value === option && <Check size={15} />}</Command.Item>)}
       </Command.List>
     </Command>}
   </div>;
