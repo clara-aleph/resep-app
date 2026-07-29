@@ -2,12 +2,14 @@ import { GoogleGenerativeAI, SchemaType } from "@google/generative-ai";
 import getFacebookVideoInfo from "@renpwn/fb-downloader";
 import { instagram as getInstagramVideoInfo } from "@jerrycoder/instagram-api";
 import { NextRequest, NextResponse } from "next/server";
+import { createClient } from "@supabase/supabase-js";
 
 export const runtime = "nodejs";
 // Batas tertinggi fungsi serverless Vercel pada paket gratis.
 export const maxDuration = 60;
 
 const FACEBOOK_SCRAPER_TIMEOUT_MS = 12_000;
+const MAX_THUMBNAIL_BYTES = 4_000_000;
 
 const prompt = "You are an elite culinary AI. Watch this cooking video and extract the full recipe. You MUST separate the content clearly into two distinct sections: 'Bahan-bahan' (Ingredients) and 'Cara Membuat' (Step-by-step instructions). Crucial Requirement: The entire output must be translated and written strictly in Indonesian, regardless of the original language spoken or shown in the video. Output the result in clean JSON format with separate arrays/fields for 'bahan' and 'cara_membuat' so the frontend can parse it easily. Periksa frame visual video secara menyeluruh, termasuk teks di layar dan aksi memasak; jangan hanya mengandalkan audio. Hanya sertakan bahan dan langkah yang benar-benar terlihat, terdengar, atau tersirat jelas dalam video. Jika video bukan resep, kembalikan kedua array kosong.";
 
@@ -82,6 +84,39 @@ async function getFacebookSdVideo(url: string) {
   }
 }
 
+async function getYouTubeMetadata(url: string) {
+  try {
+    const response = await fetch(`https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`, { cache: "no-store" });
+    if (!response.ok) return { title: null, thumbnailUrl: null };
+    const data = await response.json() as { title?: unknown; thumbnail_url?: unknown };
+    return { title: typeof data.title === "string" ? data.title : null, thumbnailUrl: typeof data.thumbnail_url === "string" ? data.thumbnail_url : null };
+  } catch { return { title: null, thumbnailUrl: null }; }
+}
+
+async function cacheThumbnailInSupabase(thumbnailUrl: string | null) {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!thumbnailUrl || !supabaseUrl || !serviceRoleKey) return null;
+  try {
+    const source = new URL(thumbnailUrl);
+    if (source.protocol !== "https:") return null;
+    const response = await fetch(source, { cache: "no-store" });
+    const contentType = response.headers.get("content-type")?.split(";")[0].toLowerCase() ?? "";
+    if (!response.ok || !["image/jpeg", "image/png", "image/webp"].includes(contentType)) return null;
+    const image = new Uint8Array(await response.arrayBuffer());
+    if (!image.byteLength || image.byteLength > MAX_THUMBNAIL_BYTES) return null;
+    const extension = contentType === "image/png" ? "png" : contentType === "image/webp" ? "webp" : "jpg";
+    const client = createClient(supabaseUrl, serviceRoleKey, { auth: { autoRefreshToken: false, persistSession: false } });
+    const path = `thumbnail-resep/${crypto.randomUUID()}.${extension}`;
+    const { error } = await client.storage.from("recipe-images").upload(path, image, { contentType, upsert: false });
+    if (error) throw error;
+    return client.storage.from("recipe-images").getPublicUrl(path).data.publicUrl;
+  } catch (error) {
+    console.warn("Thumbnail eksternal tidak dapat disalin ke Supabase:", error);
+    return null;
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     const { url } = await request.json() as { url?: string };
@@ -95,6 +130,12 @@ export async function POST(request: NextRequest) {
     let mimeType = "video/*";
     let title: string | null = null;
     let thumbnailUrl: string | null = null;
+
+    if (validYoutubeUrl(url)) {
+      const metadata = await getYouTubeMetadata(url.trim());
+      title = metadata.title;
+      thumbnailUrl = metadata.thumbnailUrl;
+    }
 
     if (validFacebookUrl(url)) {
       try {
@@ -143,7 +184,8 @@ export async function POST(request: NextRequest) {
       { fileData: { mimeType, fileUri: videoUri } },
       { text: prompt },
     ]);
-    return NextResponse.json({ ...parseRecipe(result.response.text()), mock: false, title, thumbnail_url: thumbnailUrl });
+    const permanentThumbnailUrl = await cacheThumbnailInSupabase(thumbnailUrl);
+    return NextResponse.json({ ...parseRecipe(result.response.text()), mock: false, title, thumbnail_url: permanentThumbnailUrl });
   } catch (error) {
     console.error("Gagal menganalisis video masak:", error);
     const message = error instanceof Error ? error.message : "Video tidak dapat dianalisis.";

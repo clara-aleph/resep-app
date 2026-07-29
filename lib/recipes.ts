@@ -56,10 +56,13 @@ export async function updateRecipe(id: string, input: Partial<RecipeInput>) {
   if (!isSupabaseConfigured()) {
     const recipes = localRecipes().map((recipe) => recipe.id === id ? { ...recipe, ...input } : recipe);
     writeLocal(recipes);
-    return recipes.find((recipe) => recipe.id === id) ?? null;
+    const updated = recipes.find((recipe) => recipe.id === id);
+    if (!updated) throw new Error("Resep tidak ditemukan.");
+    return updated;
   }
-  const { data, error } = await createSupabaseClient().from("recipes").update(input).eq("id", id).select().single();
+  const { data, error } = await createSupabaseClient().from("recipes").update(input).eq("id", id).select().maybeSingle();
   if (error) throw error;
+  if (!data) throw new Error("Resep tidak ditemukan atau Anda tidak memiliki izin untuk memperbaruinya.");
   return normaliseRecipe(data as Recipe);
 }
 

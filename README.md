@@ -22,5 +22,6 @@ Tanpa kredensial Supabase, aplikasi memakai penyimpanan lokal browser agar alur 
 ## Catatan fitur
 
 - Tautan YouTube publik diteruskan oleh route serverless sebagai konteks video langsung ke Gemini 2.5 Flash. Tambahkan `GEMINI_API_KEY` dari Google AI Studio ke `.env.local`; kunci ini tidak pernah dikirim ke browser. Video harus publik (bukan privat atau tidak publik).
+- Tambahkan `SUPABASE_SERVICE_ROLE_KEY` hanya pada lingkungan server (misalnya Vercel) agar thumbnail video eksternal dapat disalin ke bucket `recipe-images` dan tidak kedaluwarsa. Jangan pernah memakai awalan `NEXT_PUBLIC_` untuk kunci ini.
 - Foto catatan resep dikompres di browser sebelum dikirim ke route serverless Gemini 2.5 Flash. Gemini membaca tulisan tangan Indonesia, termasuk singkatan memasak dan tanda petik pengulangan; hasilnya tetap perlu ditinjau sebelum disimpan.
 - Pratinjau video tanpa kunci Gemini ditandai sebagai data contoh pada pengalaman pengguna.

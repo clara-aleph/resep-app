@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 480" role="img" aria-labelledby="title desc">
+  <title id="title">Foto resep tidak tersedia</title>
+  <desc id="desc">Ilustrasi peralatan makan berwarna oranye</desc>
+  <rect width="800" height="480" fill="#ffedd5"/>
+  <circle cx="400" cy="240" r="130" fill="#fed7aa"/>
+  <g fill="none" stroke="#ea580c" stroke-linecap="round" stroke-linejoin="round" stroke-width="24">
+    <path d="M280 128v82m-30-82v82m60-82v82m-30 0v152"/>
+    <path d="M228 210h104"/>
+    <path d="M505 130c-40 0-64 38-64 84 0 40 18 68 64 68s64-28 64-68c0-46-24-84-64-84z" fill="#ea580c" stroke="none"/>
+    <path d="M505 282v80"/>
+  </g>
+</svg>
