@@ -82,14 +82,16 @@ function readFileAsDataUrl(file: File) {
 }
 
 export async function uploadRecipeImage(file: File, folder = "foto-resep") {
-  const fallback = await readFileAsDataUrl(file);
-  if (!isSupabaseConfigured()) return fallback;
+  if (!file.type.startsWith("image/")) throw new Error("Berkas yang dipilih harus berupa foto.");
+  if (!isSupabaseConfigured()) return readFileAsDataUrl(file);
   const extension = file.name.split(".").pop()?.replace(/[^a-z0-9]/gi, "") || "jpg";
   const path = `${folder}/${crypto.randomUUID()}.${extension}`;
   const client = createSupabaseClient();
-  const { error } = await client.storage.from("recipe-images").upload(path, file, { contentType: file.type, upsert: false });
-  if (error) return fallback;
-  return client.storage.from("recipe-images").getPublicUrl(path).data.publicUrl;
+  const { error } = await client.storage.from("recipe-images").upload(path, file, { contentType: file.type || "image/jpeg", upsert: false });
+  if (error) throw new Error(`Foto gagal diunggah ke penyimpanan: ${error.message}`);
+  const publicUrl = client.storage.from("recipe-images").getPublicUrl(path).data.publicUrl;
+  if (!publicUrl) throw new Error("URL publik foto tidak dapat dibuat.");
+  return publicUrl;
 }
 
 export async function deleteRecipeImage(url: string | null) {
