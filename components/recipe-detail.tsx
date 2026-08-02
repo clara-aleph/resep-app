@@ -12,6 +12,11 @@ const lines = (values: string[]) => values.join("\n");
 const toList = (value: string) => value.split("\n").map((item) => item.replace(/^\s*(?:(?:[-•*])\s+|\d+[.)]\s+)/, "").trim()).filter(Boolean);
 const formatTanggalIndonesia = (value: string) => new Intl.DateTimeFormat("id-ID", { day: "numeric", month: "short", year: "numeric", timeZone: "Asia/Jakarta" }).format(new Date(value));
 const gunakanPlaceholder = (event: SyntheticEvent<HTMLImageElement>) => { event.currentTarget.onerror = null; event.currentTarget.src = "/recipe-placeholder.svg"; };
+const pesanKegagalan = (error: unknown) => {
+  if (error instanceof Error) return error.message;
+  if (error && typeof error === "object" && "message" in error && typeof error.message === "string") return error.message;
+  return "Penyimpanan tidak dapat dihubungi.";
+};
 function sumberResep(sourceUrl: string | null) { if (!sourceUrl) return "Foto/Manual"; try { const host = new URL(sourceUrl).hostname.replace(/^www\./, "").toLowerCase(); if (host === "youtu.be" || host.includes("youtube.com")) return "YouTube"; if (host === "fb.watch" || host.includes("facebook.com")) return "Facebook"; if (host.includes("instagram.com")) return "Instagram"; return "Video"; } catch { return "Foto/Manual"; } }
 
 export function RecipeDetail({ id }: { id: string }) {
@@ -22,7 +27,49 @@ export function RecipeDetail({ id }: { id: string }) {
   useEffect(() => { Promise.all([getRecipe(id), getRecipes()]).then(([current, all]) => { setRecipe(current); setCategories(all.flatMap((item) => item.categories)); if (current) { setTitle(current.title); setCategory(current.categories[0] ?? ""); setIngredients(lines(current.ingredients_list)); setInstructions(lines(current.instructions_list)); setResultImageFile(null); setResultImagePreview(null); setRemoveResultImage(false); setStatus(""); } else setStatus("Resep tidak ditemukan."); }).catch(() => setStatus("Resep belum dapat dimuat.")); }, [id]);
   function pilihFotoHasil(event: ChangeEvent<HTMLInputElement>) { const file = event.target.files?.[0]; if (!file) return; setResultImageFile(file); setResultImagePreview(URL.createObjectURL(file)); setRemoveResultImage(false); setStatus(""); }
   function hapusFotoHasil() { setResultImageFile(null); setResultImagePreview(null); setRemoveResultImage(true); setStatus(""); }
-  async function save() { if (!recipe || !title.trim()) return setStatus("Judul resep wajib diisi."); setStatus("Menyimpan perubahan..."); try { const hasResultImageChange = Boolean(resultImageFile) || removeResultImage; let resultImageUrl = recipe.result_image_url; if (resultImageFile) resultImageUrl = await uploadRecipeImage(resultImageFile, "hasil-masakan"); else if (removeResultImage) resultImageUrl = null; const changes = { title: title.trim(), categories: category ? [category] : [], ingredients_list: toList(ingredients), instructions_list: toList(instructions), ...(hasResultImageChange ? { result_image_url: resultImageUrl } : {}) }; const updated = await updateRecipe(recipe.id, changes); if (recipe.result_image_url && hasResultImageChange && recipe.result_image_url !== resultImageUrl) { try { await deleteRecipeImage(recipe.result_image_url); } catch { /* Foto lama mungkin berasal dari penyimpanan lokal; perubahan resep tetap tersimpan. */ } } setRecipe(updated); setTitle(updated.title); setCategory(updated.categories[0] ?? ""); setIngredients(lines(updated.ingredients_list)); setInstructions(lines(updated.instructions_list)); setResultImageFile(null); setResultImagePreview(null); setRemoveResultImage(false); setEdit(false); setStatus("Perubahan berhasil disimpan."); } catch (error) { setStatus(error instanceof Error ? `Perubahan belum dapat disimpan: ${error.message}` : "Perubahan belum dapat disimpan."); } }
+  async function save() {
+    if (!recipe || !title.trim()) return setStatus("Judul resep wajib diisi.");
+    const hasResultImageChange = Boolean(resultImageFile) || removeResultImage;
+    let uploadedImageUrl: string | null = null;
+    try {
+      let resultImageUrl = recipe.result_image_url;
+      if (resultImageFile) {
+        setStatus("Mengunggah foto hasil masakan...");
+        resultImageUrl = await uploadRecipeImage(resultImageFile, "hasil-masakan");
+        uploadedImageUrl = resultImageUrl;
+      } else if (removeResultImage) {
+        resultImageUrl = null;
+      }
+
+      setStatus("Menyimpan perubahan...");
+      const changes = {
+        title: title.trim(),
+        categories: category ? [category] : [],
+        ingredients_list: toList(ingredients),
+        instructions_list: toList(instructions),
+        ...(hasResultImageChange ? { result_image_url: resultImageUrl } : {}),
+      };
+      const updated = await updateRecipe(recipe.id, changes);
+      if (recipe.result_image_url && hasResultImageChange && recipe.result_image_url !== resultImageUrl) {
+        try { await deleteRecipeImage(recipe.result_image_url); } catch { /* Foto lama mungkin berasal dari penyimpanan lokal; perubahan resep tetap tersimpan. */ }
+      }
+      setRecipe(updated);
+      setTitle(updated.title);
+      setCategory(updated.categories[0] ?? "");
+      setIngredients(lines(updated.ingredients_list));
+      setInstructions(lines(updated.instructions_list));
+      setResultImageFile(null);
+      setResultImagePreview(null);
+      setRemoveResultImage(false);
+      setEdit(false);
+      setStatus("Perubahan berhasil disimpan.");
+    } catch (error) {
+      if (uploadedImageUrl) {
+        try { await deleteRecipeImage(uploadedImageUrl); } catch { /* File yatim tidak menghalangi pesan kesalahan utama. */ }
+      }
+      setStatus(`Perubahan belum dapat disimpan: ${pesanKegagalan(error)}`);
+    }
+  }
   async function toggleTried() { if (!recipe) return; setStatus("Menyimpan status resep..."); try { const updated = await updateRecipe(recipe.id, { is_tried: !recipe.is_tried }); if (updated) { setRecipe(updated); setStatus(updated.is_tried ? "Resep ditandai ❤️ Suka Resep Ini." : "Tanda ❤️ Suka Resep Ini dibatalkan."); } } catch { setStatus("Status resep belum dapat disimpan."); } }
   async function remove() { if (!recipe || !window.confirm(`Hapus resep “${recipe.title}”? Tindakan ini tidak dapat dibatalkan.`)) return; setStatus("Menghapus resep..."); try { await deleteRecipe(recipe.id); router.push("/"); } catch { setStatus("Resep belum dapat dihapus."); } }
   if (!recipe) return <main className="grid min-h-screen place-items-center bg-[#fffaf5] p-6"><div className="text-center"><p className="text-stone-600">{status}</p><Link href="/" className="mt-4 inline-block font-semibold text-orange-700">Kembali ke koleksi</Link></div></main>;

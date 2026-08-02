@@ -1,6 +1,7 @@
 import { createSupabaseClient, isSupabaseConfigured } from "@/lib/supabase";
 
 const recipeImageBucket = "recipe-images";
+const maxServerUploadBytes = 3_500_000;
 
 export type Recipe = {
   id: string;
@@ -83,6 +84,23 @@ function readFileAsDataUrl(file: File) {
   });
 }
 
+function errorMessage(error: unknown) {
+  if (error instanceof Error) return error.message;
+  if (error && typeof error === "object" && "message" in error && typeof error.message === "string") return error.message;
+  return "Penyimpanan foto tidak dapat dihubungi.";
+}
+
+async function uploadImageViaServer(file: File, folder: string) {
+  if (file.size > maxServerUploadBytes) throw new Error("Foto terlalu besar untuk unggahan cadangan. Gunakan foto berukuran maksimal 3,5 MB atau aktifkan kebijakan unggah bucket.");
+  const formData = new FormData();
+  formData.set("image", file);
+  formData.set("folder", folder);
+  const response = await fetch("/api/upload-recipe-image", { method: "POST", body: formData });
+  const payload = await response.json().catch(() => null) as { url?: unknown; error?: unknown } | null;
+  if (!response.ok || typeof payload?.url !== "string") throw new Error(typeof payload?.error === "string" ? payload.error : "Unggahan foto melalui server gagal.");
+  return payload.url;
+}
+
 export async function uploadRecipeImage(file: File, folder = "foto-resep") {
   if (!file.type.startsWith("image/")) throw new Error("Berkas yang dipilih harus berupa foto.");
   if (!isSupabaseConfigured()) return readFileAsDataUrl(file);
@@ -93,11 +111,21 @@ export async function uploadRecipeImage(file: File, folder = "foto-resep") {
   const extension = file.name.split(".").pop()?.replace(/[^a-z0-9]/gi, "") || "jpg";
   const path = `${folder}/${crypto.randomUUID()}.${extension}`;
   const client = createSupabaseClient();
-  const { error } = await client.storage.from(recipeImageBucket).upload(path, file, { contentType: file.type || "image/jpeg", upsert: false });
-  if (error) throw new Error(`Foto gagal diunggah ke penyimpanan: ${error.message}`);
-  const publicUrl = client.storage.from(recipeImageBucket).getPublicUrl(path).data.publicUrl;
-  if (!publicUrl) throw new Error("URL publik foto tidak dapat dibuat.");
-  return publicUrl;
+  try {
+    const { error } = await client.storage.from(recipeImageBucket).upload(path, file, { contentType: file.type || "image/jpeg", upsert: false });
+    if (error) throw error;
+    const publicUrl = client.storage.from(recipeImageBucket).getPublicUrl(path).data.publicUrl;
+    if (!publicUrl) throw new Error("URL publik foto tidak dapat dibuat.");
+    return publicUrl;
+  } catch (browserUploadError) {
+    // Cadangan server memakai service-role key, sehingga tetap bekerja bila RLS browser
+    // belum diterapkan. Endpoint ini tidak pernah mengirim kunci tersebut ke klien.
+    try {
+      return await uploadImageViaServer(file, folder);
+    } catch (serverUploadError) {
+      throw new Error(`Foto gagal diunggah. ${errorMessage(browserUploadError)} ${errorMessage(serverUploadError)}`);
+    }
+  }
 }
 
 export async function deleteRecipeImage(url: string | null) {

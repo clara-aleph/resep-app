@@ -62,7 +62,7 @@ export function Dashboard() {
   };
 
   const stickyFilterClasses = isFilterSticky
-    ? "-mx-4 w-[calc(100%+2rem)] rounded-none border-x-0 border-t-0 py-0 shadow-md md:left-1/2 md:mx-0 md:w-screen md:-translate-x-1/2 md:border-x-0"
+    ? "-mx-4 w-[calc(100%+2rem)] rounded-none border-x-0 border-t-0 py-0 shadow-md md:ml-[calc((100%-100vw)/2)] md:mr-0 md:w-screen md:translate-x-0 md:border-x-0"
     : "mx-auto w-full max-w-6xl rounded-2xl shadow-sm";
   const filterInnerClasses = isFilterSticky ? "px-4 py-3 md:mx-auto md:max-w-6xl md:px-8" : "p-3";
 
