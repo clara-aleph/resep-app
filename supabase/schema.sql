@@ -32,7 +32,8 @@ create policy "Resep dapat dibuat" on public.recipes for insert with check (true
 create policy "Resep dapat diperbarui" on public.recipes for update using (true) with check (true);
 create policy "Resep dapat dihapus" on public.recipes for delete using (true);
 
--- Penyimpanan foto resep asli. Berkas ini bersifat publik agar bisa ditampilkan di aplikasi.
+-- Penyimpanan foto resep asli dan hasil masakan. Jika upload dari browser gagal karena RLS,
+-- jalankan kebijakan INSERT/SELECT/DELETE di bawah ini pada proyek Supabase yang dideploy.
 insert into storage.buckets (id, name, public) values ('recipe-images', 'recipe-images', true) on conflict (id) do update set public = true;
 drop policy if exists "Foto resep dapat diunggah" on storage.objects;
 drop policy if exists "Foto resep dapat dibaca" on storage.objects;

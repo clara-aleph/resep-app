@@ -1,5 +1,7 @@
 import { createSupabaseClient, isSupabaseConfigured } from "@/lib/supabase";
 
+const recipeImageBucket = "recipe-images";
+
 export type Recipe = {
   id: string;
   title: string;
@@ -84,12 +86,16 @@ function readFileAsDataUrl(file: File) {
 export async function uploadRecipeImage(file: File, folder = "foto-resep") {
   if (!file.type.startsWith("image/")) throw new Error("Berkas yang dipilih harus berupa foto.");
   if (!isSupabaseConfigured()) return readFileAsDataUrl(file);
+
+  // Bucket `recipe-images` must be public and allow INSERT/SELECT (and DELETE for removal)
+  // on `storage.objects` for this browser role. Run supabase/schema.sql in the Supabase SQL
+  // Editor, or update the bucket's RLS policies, before using uploads in production.
   const extension = file.name.split(".").pop()?.replace(/[^a-z0-9]/gi, "") || "jpg";
   const path = `${folder}/${crypto.randomUUID()}.${extension}`;
   const client = createSupabaseClient();
-  const { error } = await client.storage.from("recipe-images").upload(path, file, { contentType: file.type || "image/jpeg", upsert: false });
+  const { error } = await client.storage.from(recipeImageBucket).upload(path, file, { contentType: file.type || "image/jpeg", upsert: false });
   if (error) throw new Error(`Foto gagal diunggah ke penyimpanan: ${error.message}`);
-  const publicUrl = client.storage.from("recipe-images").getPublicUrl(path).data.publicUrl;
+  const publicUrl = client.storage.from(recipeImageBucket).getPublicUrl(path).data.publicUrl;
   if (!publicUrl) throw new Error("URL publik foto tidak dapat dibuat.");
   return publicUrl;
 }
@@ -100,6 +106,6 @@ export async function deleteRecipeImage(url: string | null) {
   const pathIndex = url.indexOf(prefix);
   if (pathIndex === -1) return;
   const path = decodeURIComponent(url.slice(pathIndex + prefix.length));
-  const { error } = await createSupabaseClient().storage.from("recipe-images").remove([path]);
+  const { error } = await createSupabaseClient().storage.from(recipeImageBucket).remove([path]);
   if (error) throw error;
 }
