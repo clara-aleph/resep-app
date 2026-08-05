@@ -67,7 +67,7 @@ export function AddRecipeCard({ categories, onCreated }: { categories: string[];
       const response = await fetch("/api/analyze-cooking-video", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ url: videoUrl }) });
       const analyzed = await response.json();
       if (!response.ok) throw new Error(analyzed.error);
-      setTitle((current) => current || analyzed.title || "Resep dari video"); setCover(analyzed.thumbnail_url ?? null); setText(analyzed.mock ? "Data contoh ditampilkan karena kunci Gemini belum diatur." : "Resep berhasil dianalisis dari video oleh Gemini.");
+      setTitle((current) => !current.trim() || current === "Resep dari video" ? analyzed.title || "Resep dari video" : current); setCover(analyzed.thumbnail_url ?? null); setText(analyzed.mock ? "Data contoh ditampilkan karena kunci Gemini belum diatur." : "Resep berhasil dianalisis dari video oleh Gemini.");
       setIngredients(analyzed.bahan.join("\n")); setInstructions(analyzed.cara_membuat.join("\n")); setStatus(analyzed.mock ? "Data contoh resep telah diisi. Tambahkan kunci Gemini untuk analisis video asli." : "Resep berhasil dianalisis. Periksa sebelum menyimpan.");
     } catch (error) { setStatus(error instanceof Error ? error.message : "Tautan tidak dapat diproses."); } finally { setLoading(false); }
   }

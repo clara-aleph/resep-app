@@ -158,10 +158,12 @@ export function Dashboard() {
               </div>
             ) : (
               <div className="grid gap-4 px-1 sm:grid-cols-2 sm:px-0 xl:grid-cols-3">
-                {filtered.map((recipe) => (
+                {filtered.map((recipe) => {
+                  const primaryCoverImage = recipe.result_image_url || recipe.cover_image_url;
+                  return (
                   <Link key={recipe.id} href={`/resep/${recipe.id}`} className="group relative overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-stone-100 transition hover:-translate-y-0.5 hover:shadow-md">
-                    {recipe.cover_image_url ? (
-                      <img src={recipe.cover_image_url} alt={`Foto ${recipe.title}`} onError={(event) => { event.currentTarget.onerror = null; event.currentTarget.src = "/recipe-placeholder.svg"; }} className="h-36 w-full object-cover" />
+                    {primaryCoverImage ? (
+                      <img src={primaryCoverImage} alt={`Foto ${recipe.title}`} onError={(event) => { event.currentTarget.onerror = null; event.currentTarget.src = "/recipe-placeholder.svg"; }} className="h-36 w-full object-cover" />
                     ) : (
                       <div className="grid h-36 place-items-center bg-orange-100 text-orange-500"><Soup size={32} /></div>
                     )}
@@ -172,7 +174,8 @@ export function Dashboard() {
                       <p className="mt-2 text-base text-stone-500">{recipe.ingredients_list.length} bahan · {recipe.instructions_list.length} langkah</p>
                     </div>
                   </Link>
-                ))}
+                  );
+                })}
               </div>
             )}
           </section>
