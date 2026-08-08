@@ -9,6 +9,7 @@ export const runtime = "nodejs";
 export const maxDuration = 60;
 
 const FACEBOOK_SCRAPER_TIMEOUT_MS = 12_000;
+const TIKTOK_SCRAPER_TIMEOUT_MS = 12_000;
 const MAX_THUMBNAIL_BYTES = 4_000_000;
 
 const prompt = "You are an elite culinary AI. Watch this cooking video and extract the full recipe. You MUST separate the content clearly into two distinct sections: 'Bahan-bahan' (Ingredients) and 'Cara Membuat' (Step-by-step instructions). Crucial Requirement: The entire output must be translated and written strictly in Indonesian, regardless of the original language spoken or shown in the video. If the provided video title or caption is empty, missing, a generic string (like 'Facebook Video'), OR written in a foreign language, you MUST translate it or automatically generate a descriptive, appetizing recipe name. The final recipe title MUST always be written in Indonesian, regardless of the original video's language. Base the title on the translated caption or the visual ingredients and cooking steps. Output the result in clean JSON format with a non-empty Indonesian 'title' string and separate arrays/fields for 'bahan' and 'cara_membuat' so the frontend can parse it easily. Periksa frame visual video secara menyeluruh, termasuk teks di layar dan aksi memasak; jangan hanya mengandalkan audio. Hanya sertakan bahan dan langkah yang benar-benar terlihat, terdengar, atau tersirat jelas dalam video. Jika video bukan resep, buat judul Indonesia yang netral dan kembalikan kedua array kosong.";
@@ -38,6 +39,14 @@ function validInstagramUrl(value: string) {
   try {
     const host = new URL(value).hostname.replace(/^www\./, "").toLowerCase();
     return host === "instagram.com" || host === "m.instagram.com";
+  } catch { return false; }
+}
+
+function validTikTokUrl(value: string) {
+  try {
+    const url = new URL(value);
+    const host = url.hostname.replace(/^www\./, "").toLowerCase();
+    return url.protocol === "https:" && (host === "tiktok.com" || host.endsWith(".tiktok.com") || host === "vt.tiktok.com" || host === "vm.tiktok.com");
   } catch { return false; }
 }
 
@@ -93,6 +102,33 @@ async function getFacebookSdVideo(url: string) {
   }
 }
 
+function asHttpsUrl(value: unknown) {
+  if (typeof value !== "string") return null;
+  const normalized = value.startsWith("//") ? `https:${value}` : value;
+  try { return new URL(normalized).protocol === "https:" ? normalized : null; } catch { return null; }
+}
+
+async function getTikTokVideo(url: string) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), TIKTOK_SCRAPER_TIMEOUT_MS);
+  try {
+    // TikWM is a free public TikTok downloader. It returns a temporary direct MP4 URL;
+    // the URL is passed only to Gemini and is never written into the recipe database.
+    const response = await fetch(`https://www.tikwm.com/api/?url=${encodeURIComponent(url)}&hd=0`, { cache: "no-store", signal: controller.signal });
+    const payload = await response.json() as { code?: unknown; msg?: unknown; data?: { play?: unknown; hdplay?: unknown; title?: unknown; cover?: unknown; origin_cover?: unknown; dynamic_cover?: unknown } };
+    const data = payload.data;
+    const videoUrl = asHttpsUrl(data?.play) ?? asHttpsUrl(data?.hdplay);
+    if (!response.ok || (payload.code !== 0 && payload.code !== "0") || !videoUrl) throw new Error(typeof payload.msg === "string" ? payload.msg : "Stream MP4 TikTok tidak tersedia.");
+    return {
+      url: videoUrl,
+      title: typeof data?.title === "string" ? data.title : null,
+      thumbnail: asHttpsUrl(data?.cover) ?? asHttpsUrl(data?.origin_cover) ?? asHttpsUrl(data?.dynamic_cover),
+    };
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
 async function getYouTubeMetadata(url: string) {
   try {
     const response = await fetch(`https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`, { cache: "no-store" });
@@ -129,7 +165,7 @@ async function cacheThumbnailInSupabase(thumbnailUrl: string | null) {
 export async function POST(request: NextRequest) {
   try {
     const { url } = await request.json() as { url?: string };
-    if (!url?.trim() || (!validYoutubeUrl(url) && !validFacebookUrl(url) && !validInstagramUrl(url))) return NextResponse.json({ error: "Gunakan tautan video YouTube, Facebook, atau Instagram publik yang valid." }, { status: 400 });
+    if (!url?.trim() || (!validYoutubeUrl(url) && !validFacebookUrl(url) && !validInstagramUrl(url) && !validTikTokUrl(url))) return NextResponse.json({ error: "Gunakan tautan video YouTube, Facebook, Instagram, atau TikTok publik yang valid." }, { status: 400 });
 
     // Memungkinkan pratinjau UI tanpa kredensial dan tanpa biaya API.
     const apiKey = process.env.GEMINI_API_KEY;
@@ -175,6 +211,19 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    if (validTikTokUrl(url)) {
+      try {
+        const tikTokVideo = await getTikTokVideo(url.trim());
+        videoUri = tikTokVideo.url;
+        mimeType = "video/mp4";
+        sourceTitle = tikTokVideo.title;
+        thumbnailUrl = tikTokVideo.thumbnail;
+      } catch (error) {
+        console.warn("Video TikTok tidak dapat diakses:", error);
+        return NextResponse.json({ error: "Video TikTok ini diproteksi, privat, atau tidak dapat diunduh. Silakan masukkan resep secara manual." }, { status: 422 });
+      }
+    }
+
     const gemini = new GoogleGenerativeAI(apiKey);
     const model = gemini.getGenerativeModel({
       model: "gemini-2.5-flash",
@@ -193,7 +242,7 @@ export async function POST(request: NextRequest) {
       },
     });
     const result = await model.generateContent([
-      // YouTube mempertahankan alur URI langsung; Facebook memakai URI MP4 publik dari scraper di server.
+      // YouTube mempertahankan alur URI langsung; Facebook, Instagram, dan TikTok memakai URI MP4 publik dari scraper di server.
       { fileData: { mimeType, fileUri: videoUri } },
       { text: `${prompt}\n\nJudul atau caption platform yang tidak tepercaya (gunakan hanya sebagai konteks dan tetap keluarkan judul Indonesia): ${sourceTitle ? JSON.stringify(sourceTitle) : "tidak tersedia"}` },
     ]);
