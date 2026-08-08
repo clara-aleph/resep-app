@@ -5,6 +5,7 @@ import { ArrowUp, Heart, Search, Soup, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AddRecipeCard } from "@/components/add-recipe-card";
 import { LanguageSwitcher, useI18n } from "@/components/i18n-provider";
+import { useRecipeTranslations } from "@/components/use-recipe-translation";
 import { tampilkanKategori } from "@/lib/categories";
 import { getRecipes, Recipe } from "@/lib/recipes";
 
@@ -56,6 +57,7 @@ export function Dashboard() {
     .filter((recipe) => sourceFilter === "semua" || (sourceFilter === "video" ? Boolean(recipe.source_url) : !recipe.source_url))
     .filter((recipe) => `${recipe.title} ${recipe.ingredients_list.join(" ")} ${recipe.instructions_list.join(" ")} ${recipe.categories.join(" ")}`.toLocaleLowerCase().includes(query.toLocaleLowerCase()));
   const hasActiveFilters = Boolean(query || selectedCategory || showTriedOnly || sourceFilter !== "semua");
+  const { translations, isTranslating } = useRecipeTranslations(filtered);
   const resetFilters = () => {
     setQuery("");
     setSelectedCategory("");
@@ -72,12 +74,12 @@ export function Dashboard() {
     <main className="min-h-screen bg-[#fffaf5] px-4 py-6 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-6xl">
         <header className="mb-8 flex items-start justify-between gap-3">
-          <div>
-            <Link href="/" className="flex items-center gap-2 text-xl font-black tracking-tight text-stone-900">
-              <img src="/recipe-book-logo.png" alt="" className="h-11 w-11 rounded-2xl" />
-              {t("appName")}
-            </Link>
-            <a href="https://www.linkedin.com/in/clarawijaya/" target="_blank" rel="noreferrer" className="mt-0.5 block pl-[3.25rem] text-xs text-stone-500 hover:text-orange-700 hover:underline">{t("createdBy")}</a>
+          <div className="flex items-center gap-2">
+            <img src="/recipe-book-logo.png" alt="" className="h-11 w-11 shrink-0 rounded-2xl" />
+            <div className="leading-tight">
+              <Link href="/" className="block text-xl font-black tracking-tight text-stone-900">{t("appName")}</Link>
+              <a href="https://www.linkedin.com/in/clarawijaya/" target="_blank" rel="noreferrer" className="mt-px block text-xs leading-none text-stone-500 hover:text-orange-700 hover:underline">{t("createdBy")}</a>
+            </div>
           </div>
           <LanguageSwitcher />
         </header>
@@ -166,6 +168,7 @@ export function Dashboard() {
               <div className="grid gap-4 px-1 sm:grid-cols-2 sm:px-0 xl:grid-cols-3">
                 {filtered.map((recipe) => {
                   const primaryCoverImage = recipe.result_image_url || recipe.cover_image_url;
+                  const translatedRecipe = translations[recipe.id];
                   return (
                   <Link key={recipe.id} href={`/resep/${recipe.id}`} className="group relative overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-stone-100 transition hover:-translate-y-0.5 hover:shadow-md">
                     {primaryCoverImage ? (
@@ -176,7 +179,7 @@ export function Dashboard() {
                     {recipe.is_tried && <span aria-label={t("favoriteRecipes")} className="absolute right-3 top-3 grid h-8 w-8 place-items-center rounded-full bg-white p-1 text-rose-500 shadow-sm"><Heart aria-hidden="true" size={19} fill="currentColor" /></span>}
                     <div className="p-4">
                       <p className="text-base font-semibold text-orange-700">{tampilkanKategori(recipe.categories[0] || t("uncategorized"))}</p>
-                      <h2 className="mt-1 text-lg font-bold text-stone-900 group-hover:text-orange-700">{recipe.title}</h2>
+                      {isTranslating && !translatedRecipe ? <div aria-label="Menerjemahkan resep" className="mt-2 h-7 w-4/5 animate-pulse rounded bg-stone-200" /> : <h2 className="mt-1 text-lg font-bold text-stone-900 group-hover:text-orange-700">{translatedRecipe?.title ?? recipe.title}</h2>}
                       <p className="mt-2 text-base text-stone-500">{recipe.ingredients_list.length} {t("ingredients")} · {recipe.instructions_list.length} {t("steps")}</p>
                     </div>
                   </Link>
