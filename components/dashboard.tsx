@@ -216,7 +216,7 @@ export function Dashboard() {
                   return (
                   <Link key={recipe.id} href={`/resep/${recipe.id}`} onClick={simpanPosisiGulir} className="group relative flex h-32 overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-stone-100 transition hover:-translate-y-0.5 hover:shadow-md">
                     <div className="flex min-w-0 flex-1 flex-col p-4 pr-3">
-                      {isTranslating && !translatedRecipe ? <div aria-label="Menerjemahkan resep" className="h-7 w-4/5 animate-pulse rounded bg-stone-200" /> : <h2 className="max-h-14 overflow-hidden text-lg font-bold leading-6 text-stone-900 group-hover:text-orange-700">{translatedRecipe?.title ?? recipe.title}</h2>}
+                      {isTranslating && !translatedRecipe ? <div aria-label="Menerjemahkan resep" className="h-7 w-4/5 animate-pulse rounded bg-stone-200" /> : <h2 className="overflow-hidden text-lg font-bold leading-6 text-stone-900 group-hover:text-orange-700 [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2]">{translatedRecipe?.title ?? recipe.title}</h2>}
                       <p className="mt-2 text-sm text-stone-500">{recipe.ingredients_list.length} {t("ingredients")} · {recipe.instructions_list.length} {t("steps")}</p>
                       <p className="mt-auto truncate text-sm font-semibold text-orange-700">{tampilkanKategori(recipe.categories[0] || t("uncategorized"))}</p>
                     </div>
