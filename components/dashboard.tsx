@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { ArrowUp, BookOpen, Heart, Plus, Search, Soup, X } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AddRecipeCard } from "@/components/add-recipe-card";
 import { LanguageSwitcher, useI18n } from "@/components/i18n-provider";
 import { useRecipeTranslations } from "@/components/use-recipe-translation";
@@ -10,6 +10,7 @@ import { tampilkanKategori } from "@/lib/categories";
 import { getRecipes, Recipe } from "@/lib/recipes";
 
 type SourceFilter = "semua" | "video" | "manual";
+const scrollPositionKey = "koleksi-resep:dashboard-scroll";
 
 export function Dashboard() {
   const { t } = useI18n();
@@ -24,6 +25,11 @@ export function Dashboard() {
   const [mobileTab, setMobileTab] = useState<"koleksi" | "tambah">("koleksi");
   const [status, setStatus] = useState("Memuat koleksi resep...");
   const filterSentinelRef = useRef<HTMLDivElement>(null);
+  const scrollRestoredRef = useRef(false);
+
+  const simpanPosisiGulir = useCallback(() => {
+    try { window.sessionStorage.setItem(scrollPositionKey, String(window.scrollY)); } catch { /* Penyimpanan browser tidak tersedia. */ }
+  }, []);
 
   useEffect(() => {
     getRecipes()
@@ -33,6 +39,40 @@ export function Dashboard() {
       })
       .catch(() => setStatus("Koleksi belum dapat dimuat. Periksa koneksi database Anda."));
   }, []);
+
+  useEffect(() => {
+    const previous = window.history.scrollRestoration;
+    window.history.scrollRestoration = "manual";
+    let frame = 0;
+    const onScroll = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(simpanPosisiGulir);
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("pagehide", simpanPosisiGulir);
+    return () => {
+      cancelAnimationFrame(frame);
+      simpanPosisiGulir();
+      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("pagehide", simpanPosisiGulir);
+      window.history.scrollRestoration = previous;
+    };
+  }, [simpanPosisiGulir]);
+
+  useEffect(() => {
+    if (status || mobileTab !== "koleksi" || scrollRestoredRef.current) return;
+    const saved = Number(window.sessionStorage.getItem(scrollPositionKey));
+    if (!Number.isFinite(saved) || saved <= 0) { scrollRestoredRef.current = true; return; }
+
+    // Reapply after paint and image layout so returning from a detail route lands on the
+    // same card on both small screens and desktop rather than near the top of the list.
+    let cancelled = false;
+    const restore = () => { if (!cancelled) window.scrollTo({ top: saved, behavior: "auto" }); };
+    const firstFrame = requestAnimationFrame(() => requestAnimationFrame(restore));
+    const timers = [80, 260, 700].map((delay) => window.setTimeout(restore, delay));
+    scrollRestoredRef.current = true;
+    return () => { cancelled = true; cancelAnimationFrame(firstFrame); timers.forEach(window.clearTimeout); };
+  }, [status, recipes.length, mobileTab]);
 
   useEffect(() => {
     const sentinel = filterSentinelRef.current;
@@ -169,22 +209,20 @@ export function Dashboard() {
                 <p className="mt-1 text-base text-stone-600">{t("noRecipesHint")}</p>
               </div>
             ) : (
-              <div className="grid gap-4 px-1 sm:grid-cols-2 sm:px-0 xl:grid-cols-3">
+              <div className="grid gap-3 px-1 sm:grid-cols-2 sm:px-0 xl:grid-cols-3">
                 {filtered.map((recipe) => {
-                  const primaryCoverImage = recipe.cover_image_url;
+                  const primaryCoverImage = recipe.result_image_url || recipe.cover_image_url;
                   const translatedRecipe = translations[recipe.id];
                   return (
-                  <Link key={recipe.id} href={`/resep/${recipe.id}`} className="group relative overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-stone-100 transition hover:-translate-y-0.5 hover:shadow-md">
-                    {primaryCoverImage ? (
-                      <img src={primaryCoverImage} alt={`Foto ${recipe.title}`} onError={(event) => { event.currentTarget.onerror = null; event.currentTarget.src = "/recipe-placeholder.svg"; }} className="h-36 w-full object-cover" />
-                    ) : (
-                      <div className="grid h-36 place-items-center bg-orange-100 text-orange-500"><Soup size={32} /></div>
-                    )}
-                    {recipe.is_tried && <span aria-label={t("favoriteRecipes")} className="absolute right-3 top-3 grid h-8 w-8 place-items-center rounded-full bg-white p-1 text-rose-500 shadow-sm"><Heart aria-hidden="true" size={19} fill="currentColor" /></span>}
-                    <div className="p-4">
-                      <p className="text-base font-semibold text-orange-700">{tampilkanKategori(recipe.categories[0] || t("uncategorized"))}</p>
-                      {isTranslating && !translatedRecipe ? <div aria-label="Menerjemahkan resep" className="mt-2 h-7 w-4/5 animate-pulse rounded bg-stone-200" /> : <h2 className="mt-1 text-lg font-bold text-stone-900 group-hover:text-orange-700">{translatedRecipe?.title ?? recipe.title}</h2>}
-                      <p className="mt-2 text-base text-stone-500">{recipe.ingredients_list.length} {t("ingredients")} · {recipe.instructions_list.length} {t("steps")}</p>
+                  <Link key={recipe.id} href={`/resep/${recipe.id}`} onClick={simpanPosisiGulir} className="group relative flex h-32 overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-stone-100 transition hover:-translate-y-0.5 hover:shadow-md">
+                    <div className="flex min-w-0 flex-1 flex-col p-4 pr-3">
+                      {isTranslating && !translatedRecipe ? <div aria-label="Menerjemahkan resep" className="h-7 w-4/5 animate-pulse rounded bg-stone-200" /> : <h2 className="max-h-14 overflow-hidden text-lg font-bold leading-6 text-stone-900 group-hover:text-orange-700">{translatedRecipe?.title ?? recipe.title}</h2>}
+                      <p className="mt-2 text-sm text-stone-500">{recipe.ingredients_list.length} {t("ingredients")} · {recipe.instructions_list.length} {t("steps")}</p>
+                      <p className="mt-auto truncate text-sm font-semibold text-orange-700">{tampilkanKategori(recipe.categories[0] || t("uncategorized"))}</p>
+                    </div>
+                    <div className="relative w-[35%] min-w-28 max-w-40 shrink-0 bg-orange-100">
+                      {primaryCoverImage ? <img src={primaryCoverImage} alt={`Foto ${recipe.title}`} onError={(event) => { event.currentTarget.onerror = null; event.currentTarget.src = "/recipe-placeholder.svg"; }} className="h-full w-full object-cover" /> : <div className="grid h-full place-items-center text-orange-500"><Soup size={30} /></div>}
+                      {recipe.is_tried && <span aria-label={t("favoriteRecipes")} className="absolute right-2 top-2 grid h-7 w-7 place-items-center rounded-full bg-white p-1 text-rose-500 shadow-sm"><Heart aria-hidden="true" size={17} fill="currentColor" /></span>}
                     </div>
                   </Link>
                   );
