@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowUp, Heart, Search, Soup, X } from "lucide-react";
+import { ArrowUp, BookOpen, Heart, Plus, Search, Soup, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AddRecipeCard } from "@/components/add-recipe-card";
 import { LanguageSwitcher, useI18n } from "@/components/i18n-provider";
@@ -20,6 +20,8 @@ export function Dashboard() {
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>("semua");
   const [showBackToTop, setShowBackToTop] = useState(false);
   const [isFilterSticky, setIsFilterSticky] = useState(false);
+  const [showAuthorModal, setShowAuthorModal] = useState(false);
+  const [mobileTab, setMobileTab] = useState<"koleksi" | "tambah">("koleksi");
   const [status, setStatus] = useState("Memuat koleksi resep...");
   const filterSentinelRef = useRef<HTMLDivElement>(null);
 
@@ -71,23 +73,25 @@ export function Dashboard() {
   const filterInnerClasses = isFilterSticky ? "px-4 py-3 md:mx-auto md:max-w-6xl md:px-8" : "p-3";
 
   return (
-    <main className="min-h-screen bg-[#fffaf5] px-4 py-6 sm:px-6 lg:px-8">
+    <main className="min-h-screen bg-[#fffaf5] px-4 py-6 pb-24 sm:px-6 md:pb-6 lg:px-8">
       <div className="mx-auto max-w-6xl">
         <header className="mb-8 flex items-start justify-between gap-3">
           <div className="flex items-center gap-2">
             <img src="/recipe-book-logo.png" alt="" className="h-11 w-11 shrink-0 rounded-2xl" />
             <div className="leading-tight">
               <Link href="/" className="block text-xl font-black tracking-tight text-stone-900">{t("appName")}</Link>
-              <a href="https://www.linkedin.com/in/clarawijaya/" target="_blank" rel="noreferrer" className="mt-px block text-xs leading-none text-stone-500 hover:text-orange-700 hover:underline">{t("createdBy")}</a>
+              <button type="button" onClick={() => setShowAuthorModal(true)} className="mt-px block text-left text-xs leading-none text-stone-500 hover:text-orange-700 hover:underline">{t("createdBy")}</button>
             </div>
           </div>
           <LanguageSwitcher />
         </header>
 
         <div className="space-y-10">
-          <AddRecipeCard categories={categories} onCreated={(recipe) => setRecipes((current) => [recipe, ...current])} />
+          <div className={mobileTab === "tambah" ? "block md:block" : "hidden md:block"}>
+            <AddRecipeCard categories={categories} onCreated={(recipe) => { setRecipes((current) => [recipe, ...current]); setMobileTab("koleksi"); }} />
+          </div>
 
-          <section className="w-full">
+          <section className={`w-full ${mobileTab === "koleksi" ? "block md:block" : "hidden md:block"}`}>
             <div className="mb-4 flex items-end justify-between gap-3">
               <h1 className="text-3xl font-bold text-stone-950">{t("savedRecipes")}</h1>
               <span className="shrink-0 text-base text-stone-500">{filtered.length} {t("recipes")}</span>
@@ -167,7 +171,7 @@ export function Dashboard() {
             ) : (
               <div className="grid gap-4 px-1 sm:grid-cols-2 sm:px-0 xl:grid-cols-3">
                 {filtered.map((recipe) => {
-                  const primaryCoverImage = recipe.result_image_url || recipe.cover_image_url;
+                  const primaryCoverImage = recipe.cover_image_url;
                   const translatedRecipe = translations[recipe.id];
                   return (
                   <Link key={recipe.id} href={`/resep/${recipe.id}`} className="group relative overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-stone-100 transition hover:-translate-y-0.5 hover:shadow-md">
@@ -196,6 +200,23 @@ export function Dashboard() {
           </button>
         )}
       </div>
+      {showAuthorModal && (
+        <div role="dialog" aria-modal="true" aria-labelledby="author-modal-title" onMouseDown={(event) => { if (event.target === event.currentTarget) setShowAuthorModal(false); }} className="fixed inset-0 z-50 grid place-items-center bg-stone-950/40 p-4">
+          <div className="relative w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl">
+            <button type="button" onClick={() => setShowAuthorModal(false)} aria-label="Tutup" className="absolute right-3 top-3 grid h-9 w-9 place-items-center rounded-full text-stone-500 hover:bg-orange-50 hover:text-stone-900"><X size={20}/></button>
+            <h2 id="author-modal-title" className="pr-10 text-xl font-black text-stone-900">Clara Wijaya</h2>
+            <p className="mt-2 text-base text-stone-600">Hubungi pembuat aplikasi ini melalui:</p>
+            <div className="mt-5 grid gap-3">
+              <a href="https://www.linkedin.com/in/clarawijaya" target="_blank" rel="noreferrer" className="rounded-xl border border-orange-200 bg-orange-50 px-4 py-3 text-base font-bold text-orange-800 hover:bg-orange-100">LinkedIn</a>
+              <a href="mailto:clendy.cecewe@gmail.com" className="rounded-xl border border-orange-200 bg-orange-50 px-4 py-3 text-base font-bold text-orange-800 hover:bg-orange-100">Email</a>
+            </div>
+          </div>
+        </div>
+      )}
+      <nav aria-label="Navigasi utama" className="fixed inset-x-0 bottom-0 z-40 flex border-t border-orange-100 bg-white/95 px-5 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 shadow-[0_-4px_18px_rgba(120,53,15,0.08)] backdrop-blur md:hidden">
+        <button type="button" onClick={() => setMobileTab("koleksi")} aria-current={mobileTab === "koleksi" ? "page" : undefined} className={`flex flex-1 flex-col items-center gap-1 rounded-xl py-1.5 text-xs font-bold ${mobileTab === "koleksi" ? "text-orange-600" : "text-stone-500"}`}><BookOpen size={21}/><span>Koleksi</span></button>
+        <button type="button" onClick={() => setMobileTab("tambah")} aria-current={mobileTab === "tambah" ? "page" : undefined} className={`flex flex-1 flex-col items-center gap-1 rounded-xl py-1.5 text-xs font-bold ${mobileTab === "tambah" ? "text-orange-600" : "text-stone-500"}`}><Plus size={22}/><span>Tambah</span></button>
+      </nav>
     </main>
   );
 }

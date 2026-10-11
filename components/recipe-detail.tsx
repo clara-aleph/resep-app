@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Check, CheckCircle2, ExternalLink, ImageUp, Pencil, Printer, RotateCcw, Save, Soup, Trash2 } from "lucide-react";
+import { ArrowLeft, Check, CheckCircle2, ExternalLink, ImageUp, RefreshCw, RotateCcw, Soup, Trash2 } from "lucide-react";
 import { ChangeEvent, SyntheticEvent, useEffect, useRef, useState } from "react";
 import { CategoryCombobox } from "@/components/category-combobox";
 import { useI18n } from "@/components/i18n-provider";
@@ -48,8 +48,11 @@ export function RecipeDetail({ id }: { id: string }) {
   const [resultImageFile, setResultImageFile] = useState<File | null>(null);
   const [resultImagePreview, setResultImagePreview] = useState<string | null>(null);
   const [removeResultImage, setRemoveResultImage] = useState(false);
+  const [useResultAsCover, setUseResultAsCover] = useState(false);
+  const [cancelResultCover, setCancelResultCover] = useState(false);
   const [saveToast, setSaveToast] = useState<SaveToast | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [isRegeneratingCover, setIsRegeneratingCover] = useState(false);
   const [isTranslating, setIsTranslating] = useState(false);
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -66,6 +69,8 @@ export function RecipeDetail({ id }: { id: string }) {
       setResultImageFile(null);
       setResultImagePreview(null);
       setRemoveResultImage(false);
+      setUseResultAsCover(Boolean(current.result_image_url && current.cover_image_url === current.result_image_url));
+      setCancelResultCover(false);
       setStatus("");
     }).catch(() => setStatus("Resep belum dapat dimuat."));
   }, [id]);
@@ -130,12 +135,15 @@ export function RecipeDetail({ id }: { id: string }) {
     setResultImageFile(file);
     setResultImagePreview(URL.createObjectURL(file));
     setRemoveResultImage(false);
+    setCancelResultCover(false);
     setStatus("");
   }
   function hapusFotoHasil() {
     setResultImageFile(null);
     setResultImagePreview(null);
     setRemoveResultImage(true);
+    setUseResultAsCover(false);
+    setCancelResultCover(false);
     setStatus("");
   }
   async function save() {
@@ -146,11 +154,16 @@ export function RecipeDetail({ id }: { id: string }) {
     setIsSaving(true);
     try {
       let resultImageUrl = originalRecipe.result_image_url;
+      let coverImageUrl = originalRecipe.cover_image_url;
       if (resultImageFile) {
         tampilkanToast("Mengunggah foto hasil masakan...", "loading");
         resultImageUrl = await uploadRecipeImage(resultImageFile, "hasil-masakan");
         uploadedImageUrl = resultImageUrl;
       } else if (removeResultImage) resultImageUrl = null;
+      if (cancelResultCover) coverImageUrl = originalRecipe.original_cover_image_url ?? originalRecipe.source_image_url ?? originalRecipe.cover_image_url;
+      else if (useResultAsCover && resultImageUrl) coverImageUrl = resultImageUrl;
+      const hasCoverImageChange = coverImageUrl !== originalRecipe.cover_image_url;
+      const shouldRememberOriginalCover = useResultAsCover && Boolean(resultImageUrl) && originalRecipe.cover_image_url !== resultImageUrl && !originalRecipe.original_cover_image_url;
 
       tampilkanToast("Menyimpan perubahan...", "loading");
       const updated = await updateRecipe(originalRecipe.id, {
@@ -158,9 +171,11 @@ export function RecipeDetail({ id }: { id: string }) {
         categories: category ? [category] : [],
         ingredients_list: toList(ingredients),
         instructions_list: toList(instructions),
+        ...(hasCoverImageChange ? { cover_image_url: coverImageUrl } : {}),
+        ...(shouldRememberOriginalCover ? { original_cover_image_url: originalRecipe.cover_image_url } : {}),
         ...(hasResultImageChange ? { result_image_url: resultImageUrl } : {}),
       });
-      if (originalRecipe.result_image_url && hasResultImageChange && originalRecipe.result_image_url !== resultImageUrl) {
+      if (originalRecipe.result_image_url && hasResultImageChange && originalRecipe.result_image_url !== resultImageUrl && originalRecipe.result_image_url !== coverImageUrl) {
         try { await deleteRecipeImage(originalRecipe.result_image_url); } catch { /* File lama mungkin bukan berkas Storage. */ }
       }
       setOriginalRecipe(updated);
@@ -172,6 +187,8 @@ export function RecipeDetail({ id }: { id: string }) {
       setResultImageFile(null);
       setResultImagePreview(null);
       setRemoveResultImage(false);
+      setUseResultAsCover(Boolean(updated.result_image_url && updated.cover_image_url === updated.result_image_url));
+      setCancelResultCover(false);
       setEdit(false);
       tampilkanToast("Perubahan berhasil disimpan.", "success");
     } catch (error) {
@@ -180,6 +197,25 @@ export function RecipeDetail({ id }: { id: string }) {
       }
       tampilkanToast(`Gagal menyimpan: ${pesanKegagalan(error)}`, "error");
     } finally { setIsSaving(false); }
+  }
+  async function buatUlangSampul() {
+    if (!originalRecipe?.source_url || isRegeneratingCover) return;
+    setIsRegeneratingCover(true);
+    tampilkanToast("Membuat ulang sampul dari sumber video...", "loading");
+    try {
+      const response = await fetch("/api/regenerate-cover", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ recipeId: originalRecipe.id, sourceUrl: originalRecipe.source_url }),
+      });
+      const payload = await response.json() as { recipe?: Recipe; error?: string };
+      if (!response.ok || !payload.recipe) throw new Error(payload.error || "Sampul belum dapat dibuat ulang.");
+      setOriginalRecipe(payload.recipe);
+      setDisplayedRecipe(payload.recipe);
+      tampilkanToast("Sampul berhasil dibuat ulang dan disimpan permanen.", "success");
+    } catch (error) {
+      tampilkanToast(error instanceof Error ? error.message : "Sampul belum dapat dibuat ulang.", "error");
+    } finally { setIsRegeneratingCover(false); }
   }
   async function toggleTried() {
     if (!originalRecipe) return;
@@ -200,7 +236,7 @@ export function RecipeDetail({ id }: { id: string }) {
   if (!originalRecipe) return <main className="grid min-h-screen place-items-center bg-[#fffaf5] p-6"><div className="text-center"><p className="text-stone-600">{status}</p><Link href="/" className="mt-4 inline-block font-semibold text-orange-700">{t("backToCollection")}</Link></div></main>;
   const recipe = originalRecipe;
   const recipeForDisplay = displayedRecipe ?? originalRecipe;
-  const primaryCoverImage = recipe.result_image_url || recipe.cover_image_url;
+  const primaryCoverImage = recipe.cover_image_url;
   const showTranslationSkeleton = isTranslating && !edit;
   const displayTitle = recipeForDisplay.title;
   const displayIngredients = recipeForDisplay.ingredients_list;
@@ -212,8 +248,8 @@ export function RecipeDetail({ id }: { id: string }) {
         <Link href="/" className="inline-flex items-center gap-2 text-base font-bold text-stone-700"><ArrowLeft className="h-8 w-8 md:h-4 md:w-4"/><span className="hidden md:inline">{t("backToCollection")}</span></Link>
         <div className="flex items-center gap-2">
           {!edit && <button onClick={toggleTried} className={`hidden rounded-xl px-4 py-2 text-base font-bold sm:inline-block ${recipe.is_tried ? "bg-emerald-600 text-white" : "border border-emerald-200 bg-white text-emerald-800"}`}>{recipe.is_tried ? <><RotateCcw className="mr-1.5 inline" size={16}/>{t("unfavoriteRecipe")}</> : <><CheckCircle2 className="mr-1.5 inline" size={16}/>{t("favoriteRecipe")}</>}</button>}
-          <button onClick={() => window.print()} aria-label={t("printRecipe")} className="flex h-10 w-10 items-center justify-center rounded-xl border border-stone-300 bg-white text-base font-bold text-stone-800 md:w-auto md:px-4"><Printer className="md:mr-1.5" size={19}/><span className="hidden md:inline">{t("printRecipe")}</span></button>
-          {!edit ? <button onClick={() => { setEdit(true); setResultImageFile(null); setResultImagePreview(null); setRemoveResultImage(false); setStatus(""); }} aria-label={t("editRecipe")} className="flex h-10 w-10 items-center justify-center rounded-xl bg-stone-900 text-base font-bold text-white md:w-auto md:px-4"><Pencil className="md:mr-1.5" size={19}/><span className="hidden md:inline">{t("editRecipe")}</span></button> : <button onClick={save} disabled={isSaving} aria-label={t("saveChanges")} className="flex h-10 w-10 items-center justify-center rounded-xl bg-orange-600 text-base font-bold text-white disabled:cursor-wait disabled:opacity-60 md:w-auto md:px-4"><Save className="md:mr-1.5" size={19}/><span className="hidden md:inline">{t("saveChanges")}</span></button>}
+          {!edit && <button onClick={() => window.print()} className="flex h-10 items-center justify-center rounded-xl border border-stone-300 bg-white px-4 text-base font-bold text-stone-800">{t("printAction")}</button>}
+          {!edit ? <button onClick={() => { setEdit(true); setResultImageFile(null); setResultImagePreview(null); setRemoveResultImage(false); setUseResultAsCover(Boolean(recipe.result_image_url && recipe.cover_image_url === recipe.result_image_url)); setCancelResultCover(false); setStatus(""); }} className="flex h-10 items-center justify-center rounded-xl bg-stone-900 px-4 text-base font-bold text-white">{t("editAction")}</button> : <button onClick={save} disabled={isSaving} className="flex h-10 items-center justify-center rounded-xl bg-orange-600 px-4 text-base font-bold text-white disabled:cursor-wait disabled:opacity-60">{t("saveAction")}</button>}
           <button onClick={remove} aria-label={t("deleteRecipe")} className="flex h-10 w-10 items-center justify-center rounded-xl border border-red-200 bg-white text-red-700"><Trash2 size={18}/></button>
         </div>
       </div>
@@ -223,13 +259,13 @@ export function RecipeDetail({ id }: { id: string }) {
       <div className="recipe-content grid gap-10 lg:grid-cols-[1.4fr_.6fr]">
         <div className="recipe-primary">
           <div className="recipe-title mb-3 flex flex-wrap items-center gap-2"><p className="text-sm font-bold text-orange-700">{tampilkanKategori(recipe.categories[0] || t("uncategorized"))}</p>{recipe.is_tried && <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-bold text-emerald-800"><CheckCircle2 className="mr-1 inline" size={13}/>{t("favoriteBadge")}</span>}<button onClick={toggleTried} className="rounded-full border border-emerald-200 bg-white px-2.5 py-1 text-xs font-bold text-emerald-800 sm:hidden">{recipe.is_tried ? t("unfavoriteRecipe") : t("favoriteRecipe")}</button></div>
-          {edit ? <><input value={title} onChange={(event) => setTitle(event.target.value)} placeholder={t("recipeTitle")} className="w-full border-b-2 border-orange-300 bg-transparent pb-2 text-3xl font-black outline-none"/><div className="mt-4 max-w-sm"><CategoryCombobox value={category} onChange={setCategory} categories={categories}/></div></> : showTranslationSkeleton ? <div aria-label="Menerjemahkan resep" className="mt-1 h-12 w-3/4 animate-pulse rounded bg-stone-200"/> : <h1 className="recipe-heading text-4xl font-black tracking-tight text-stone-950">{displayTitle}</h1>}
+          {edit ? <><input value={title} onChange={(event) => setTitle(event.target.value)} placeholder={t("recipeTitle")} className="w-full border-b-2 border-orange-300 bg-transparent pb-2 text-3xl font-black outline-none"/><div className="mt-4 max-w-sm"><CategoryCombobox value={category} onChange={setCategory} categories={categories}/></div>{recipe.source_url && <button type="button" onClick={buatUlangSampul} disabled={isRegeneratingCover} className="mt-4 inline-flex items-center gap-2 rounded-xl border border-orange-300 bg-orange-50 px-4 py-2.5 text-sm font-bold text-orange-800 hover:bg-orange-100 disabled:cursor-wait disabled:opacity-60"><RefreshCw size={17} className={isRegeneratingCover ? "animate-spin" : ""}/>{isRegeneratingCover ? "Membuat ulang sampul..." : "Buat Ulang Sampul"}</button>}</> : showTranslationSkeleton ? <div aria-label="Menerjemahkan resep" className="mt-1 h-12 w-3/4 animate-pulse rounded bg-stone-200"/> : <h1 className="recipe-heading text-4xl font-black tracking-tight text-stone-950">{displayTitle}</h1>}
           <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-base text-stone-500"><p>{t("dateAdded")} {formatTanggalIndonesia(recipe.created_at)}</p><p>{t("source")} {sumberResep(recipe.source_url)}</p></div>
           {status && <p role="status" className="recipe-status mt-4 text-base text-stone-600"><Check className="mr-1 inline text-green-600" size={16}/>{status}</p>}
           {recipe.source_url && <div className="recipe-mobile-video mt-6 lg:hidden"><a href={recipe.source_url} target="_blank" rel="noreferrer" className="flex w-full items-center justify-center gap-2 rounded-xl bg-red-600 px-4 py-3 text-lg font-bold text-white hover:bg-red-700"><ExternalLink size={20}/>{t("watchOriginal")}</a></div>}
           <section className="recipe-ingredients mt-10"><h2 className="text-xl font-black text-stone-900">{t("ingredients")}</h2>{edit ? <textarea value={ingredients} onChange={(event) => setIngredients(event.target.value)} placeholder={t("oneIngredient")} rows={Math.max(5, ingredients.split("\n").length + 1)} className="mt-3 w-full rounded-xl border border-stone-300 bg-white p-3 text-sm outline-orange-400"/> : <ul className="mt-4 space-y-3">{showTranslationSkeleton ? [0, 1, 2].map((item) => <li key={item} className="h-5 animate-pulse rounded bg-stone-200"/>) : displayIngredients.length ? displayIngredients.map((item, index) => <li key={index} className="flex gap-3 text-stone-700"><span className="mt-2 h-2 w-2 shrink-0 rounded-full bg-orange-500"/>{item}</li>) : <li className="text-stone-500">{t("noIngredients")}</li>}</ul>}</section>
           <section className="recipe-instructions mt-10"><h2 className="text-xl font-black text-stone-900">{t("steps")}</h2>{edit ? <textarea value={instructions} onChange={(event) => setInstructions(event.target.value)} placeholder={t("oneStep")} rows={Math.max(5, instructions.split("\n").length + 1)} className="mt-3 w-full rounded-xl border border-stone-300 bg-white p-3 text-sm outline-orange-400"/> : <ol className="mt-4 space-y-5">{showTranslationSkeleton ? [0, 1, 2].map((item) => <li key={item} className="h-7 animate-pulse rounded bg-stone-200"/>) : displayInstructions.length ? displayInstructions.map((item, index) => <li key={index} className="flex gap-4 text-stone-700"><span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-orange-100 text-sm font-bold text-orange-700">{index + 1}</span><span className="pt-1">{item}</span></li>) : <li className="text-stone-500">{t("noInstructions")}</li>}</ol>}</section>
-          <section className="recipe-result-image mt-10"><h2 className="text-xl font-black text-stone-900">{t("resultPhoto")}</h2>{edit ? <div className="mt-4"><label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-orange-300 bg-orange-50 px-4 py-4 text-sm font-bold text-orange-800"><ImageUp size={19}/>{t("uploadResultPhoto")}<input type="file" accept="image/*" onChange={pilihFotoHasil} className="hidden"/></label>{(resultImagePreview || (!removeResultImage && recipe.result_image_url)) && <div className="mt-4"><img src={resultImagePreview ?? recipe.result_image_url ?? ""} alt={`${t("resultPhoto")} ${recipe.title}`} onError={gunakanPlaceholder} className="h-auto w-full rounded-2xl bg-white shadow-sm"/><button type="button" onClick={hapusFotoHasil} className="mt-3 inline-flex items-center gap-2 rounded-xl border border-red-200 bg-white px-3 py-2 text-sm font-bold text-red-700"><Trash2 size={17}/>{t("removePhoto")}</button></div>}</div> : recipe.result_image_url ? <img src={recipe.result_image_url} alt={`${t("resultPhoto")} ${recipe.title}`} onError={gunakanPlaceholder} className="mt-4 h-auto w-full rounded-2xl bg-white shadow-sm"/> : <p className="mt-2 text-base text-stone-500">{t("noResultPhoto")}</p>}</section>
+          <section className="recipe-result-image mt-10"><h2 className="text-xl font-black text-stone-900">{t("resultPhoto")}</h2>{edit ? <div className="mt-4"><label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-orange-300 bg-orange-50 px-4 py-4 text-sm font-bold text-orange-800"><ImageUp size={19}/>{t("uploadResultPhoto")}<input type="file" accept="image/*" onChange={pilihFotoHasil} className="hidden"/></label>{(resultImagePreview || (!removeResultImage && recipe.result_image_url)) && <div className="mt-4"><img src={resultImagePreview ?? recipe.result_image_url ?? ""} alt={`${t("resultPhoto")} ${recipe.title}`} onError={gunakanPlaceholder} className="h-auto w-full rounded-2xl bg-white shadow-sm"/><div className="mt-3 flex flex-wrap gap-2">{useResultAsCover && !cancelResultCover ? <><span className="inline-flex items-center rounded-xl bg-orange-500 px-3 py-2 text-sm font-bold text-white"><Check size={17} className="mr-1.5"/>{t("coverActive")}</span><button type="button" onClick={() => { setUseResultAsCover(false); setCancelResultCover(true); }} className="rounded-xl border border-stone-300 bg-white px-3 py-2 text-sm font-bold text-stone-700 hover:bg-stone-100">{t("cancelCover")}</button></> : <button type="button" onClick={() => { setUseResultAsCover(true); setCancelResultCover(false); }} className="rounded-xl border border-orange-300 bg-orange-50 px-3 py-2 text-sm font-bold text-orange-800 hover:bg-orange-100">{t("setAsCover")}</button>}<button type="button" onClick={hapusFotoHasil} className="inline-flex items-center gap-2 rounded-xl border border-red-200 bg-white px-3 py-2 text-sm font-bold text-red-700"><Trash2 size={17}/>{t("removePhoto")}</button></div></div>}</div> : recipe.result_image_url ? <div className="mt-4"><img src={recipe.result_image_url} alt={`${t("resultPhoto")} ${recipe.title}`} onError={gunakanPlaceholder} className="h-auto w-full rounded-2xl bg-white shadow-sm"/>{recipe.cover_image_url === recipe.result_image_url && <span className="mt-3 inline-flex items-center rounded-xl bg-orange-500 px-3 py-2 text-sm font-bold text-white"><Check size={17} className="mr-1.5"/>{t("coverActive")}</span>}</div> : <p className="mt-2 text-base text-stone-500">{t("noResultPhoto")}</p>}</section>
           {recipe.source_image_url && <section className="recipe-source-image mt-10"><h2 className="text-xl font-black text-stone-900">{t("originalPhoto")}</h2><p className="mt-2 text-sm text-stone-600">{t("originalPhotoHint")}</p><img src={recipe.source_image_url} alt={`${t("originalPhoto")} ${recipe.title}`} onError={gunakanPlaceholder} className="mt-4 h-auto w-full rounded-2xl bg-white shadow-sm"/></section>}
         </div>
         <aside className="recipe-aside hidden lg:block lg:pt-12">{recipe.source_url ? <a href={recipe.source_url} target="_blank" rel="noreferrer" className="flex w-full items-center justify-center gap-2 rounded-xl bg-red-600 px-4 py-3 text-lg font-bold text-white hover:bg-red-700"><ExternalLink size={20}/>{t("watchOriginal")}</a> : <div className="rounded-xl bg-stone-100 p-4 text-base text-stone-600">{t("noOriginalVideo")}</div>}{recipe.extracted_text && <div className="mt-5 rounded-2xl border border-orange-100 bg-white p-5"><p className="text-sm font-bold tracking-wider text-orange-700">{t("extractionNote")}</p><p className="mt-2 text-base leading-6 text-stone-600">{recipe.extracted_text}</p></div>}</aside>

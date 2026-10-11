@@ -92,7 +92,8 @@ export function AddRecipeCard({ categories, onCreated }: { categories: string[];
     setLoading(true); setStatus("Menyimpan resep...");
     try {
       const sourceImageUrl = sourcePhoto ? await uploadRecipeImage(sourcePhoto) : null;
-      const recipe = await createRecipe({ title: title.trim(), source_url: mode === "tautan" ? url.trim() || null : null, cover_image_url: sourceImageUrl ?? cover, source_image_url: sourceImageUrl, extracted_text: text || null, ingredients_list: splitLines(ingredients), instructions_list: splitLines(instructions), categories: category ? [category] : [] });
+      const initialCoverImage = sourceImageUrl ?? cover;
+      const recipe = await createRecipe({ title: title.trim(), source_url: mode === "tautan" ? url.trim() || null : null, cover_image_url: initialCoverImage, original_cover_image_url: initialCoverImage, source_image_url: sourceImageUrl, extracted_text: text || null, ingredients_list: splitLines(ingredients), instructions_list: splitLines(instructions), categories: category ? [category] : [] });
       onCreated(recipe); setStatus("Resep berhasil disimpan."); setTitle(""); setUrl(""); setCover(null); setText(""); setIngredients(""); setInstructions(""); setCategory(""); setSourcePhoto(null);
     } catch { setStatus("Resep belum dapat disimpan. Periksa koneksi database Anda."); } finally { setLoading(false); }
   }
